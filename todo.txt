@@ -1,0 +1,2 @@
+ipfw table read
+default route interface auto get
