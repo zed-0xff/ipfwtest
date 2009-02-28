@@ -1,5 +1,10 @@
 #!/usr/bin/env ruby
 
+require 'rubygems'
+gem 'netaddr'
+
+require 'net_services'
+
 class Packet
 	attr_reader :protocol, :src_ip, :dst_ip, :src_port, :dst_port, :direction
 	attr_accessor :interface, :icmptype
@@ -28,6 +33,8 @@ class Packet
 	end
 
   def self.from_string s
+		NetServices.prepare
+
     h = {}
     a = s.split
     if %w'ip tcp icmp udp'.include?(a[0])
@@ -39,26 +46,23 @@ class Packet
       arg1 = a[pos]
       arg2 = a[pos+1]
       case word
-        when 'from'
-          raise "gimme a FROM addr!" unless arg1
-          h[:from] = arg1
+        when 'from', 'to'
+          raise "gimme a #{word.upcase} addr!" unless arg1
+          h[word.to_sym] = arg1
           pos += 1
           if arg2 =~ /^\d+$/
-            h[:src_port] = arg2.to_i
+            h["#{word}_port".to_sym] = arg2.to_i
             pos += 1
-          end
-
-        when 'to'
-          raise "gimme a TO addr!" unless arg1
-          h[:to] = arg1
-          pos += 1
-          if arg2 =~ /^\d+$/
-            h[:dst_port] = arg2.to_i
+					elsif port=NetServices.n2p(arg2)
+            h["#{word}_port".to_sym] = port
             pos += 1
           end
 
         when 'in', 'out'
           h[:direction] = word
+
+				else
+					raise "invalid token: '#{word}'"
       end
     end
     Packet.new h
@@ -88,12 +92,16 @@ class Packet
 		raise "Invalid port" if port<0 || port>65535
 		@src_port = port
 	end
+	alias :from_port  :src_port
+	alias :from_port= :src_port=
 
 	def dst_port= port
 		port = port.to_i
 		raise "Invalid port" if port<0 || port>65535
 		@dst_port = port
 	end
+	alias :to_port  :dst_port
+	alias :to_port= :dst_port=
 
   def direction= dir
     dir = dir.downcase.to_sym

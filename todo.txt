@@ -1,2 +1,3 @@
 ipfw table read
 default route interface auto get
+use true protocol instead of other first allow

@@ -6,7 +6,7 @@ module IPFW::RSpecMatchers
 
     def matches?(ipfw)
       @ipfw = ipfw
-      @result = @ipfw.packet!(@pkt) == expected_result
+      (@result = @ipfw.packet!(@pkt)) == expected_result
     end
 
     def failure_message
@@ -31,13 +31,24 @@ module IPFW::RSpecMatchers
   end
 
   class Nat < Pkt
-    def initialize(pkt, nat_id)
+    def initialize(pkt, nat_id=nil)
       @pkt = pkt
       @nat_id = nat_id
     end
 
     def expected_result
-      [:nat, @nat_id]
+      @nat_id ? [:nat, @nat_id] : [:nat]
+    end
+
+    def matches?(ipfw)
+      @ipfw = ipfw
+			@result = @ipfw.packet!(@pkt)
+			if @nat_id
+				@result == expected_result
+			else
+				# nat without nat_id specified (i.e. ANY nat_id)
+				@result.is_a?(Array) && @result.first == :nat
+			end
     end
   end
 
@@ -50,7 +61,7 @@ module IPFW::RSpecMatchers
     Block.new pkt
   end
 
-  def nat pkt, nat_id
+  def nat pkt, nat_id=nil
     Nat.new pkt, nat_id
   end
 end

@@ -30,7 +30,7 @@ $sample_user_ips = $sample_user_gray_ips + $sample_user_white_ips
 
 $netping_ips = %w'192.168.250.198 192.168.251.178 192.168.127.254'
 $lightcom_ips = %w'192.168.254.112 192.168.251.206'
-
+$netping_net = "192.168.251.0/24"
 $disabled_ips = %w'192.168.55.55 192.168.76.67 62.165.61.255'
 
 def inet_ip
@@ -68,6 +68,27 @@ describe 'Firewall' do
     @fw = $fw
   end
 
+  describe "ORBITEL OFFICE <-> ME" do
+    pkts = []
+    pkts << "tcp from 192.168.250.8 to 62.165.61.1 in"
+    pkts << "tcp from 62.165.61.1 to 192.168.250.8 out"
+    should_pass pkts
+  end
+
+	describe "CYBERPLAT <-> BILLING" do
+		# cyberplat is 62.231.13.0/24
+    pkts = []
+    pkts << "tcp from 62.231.13.1   #{random_port} to 62.165.61.19 443 in"
+    pkts << "tcp from 62.231.13.1   #{random_port} to 62.165.61.19 443 out"
+    pkts << "tcp from 62.231.13.254 #{random_port} to 62.165.61.19 443 in"
+    pkts << "tcp from 62.231.13.254 #{random_port} to 62.165.61.19 443 out"
+    pkts << "tcp from 62.165.61.19 443 to 62.231.13.1   #{random_port} in"
+    pkts << "tcp from 62.165.61.19 443 to 62.231.13.1   #{random_port} out"
+    pkts << "tcp from 62.165.61.19 443 to 62.231.13.254 #{random_port} in"
+    pkts << "tcp from 62.165.61.19 443 to 62.231.13.254 #{random_port} out"
+    should_pass pkts
+	end
+
   describe "ME -> INET" do
     pkts = []
     pkts << "icmp from 62.165.53.130 to #{inet_ip} out"
@@ -103,27 +124,29 @@ describe 'Firewall' do
     end
   end
 
-  $sample_user_ips.each do |user_ip|
-    pkt = "tcp from #{user_ip} #{random_port} to #{inet_ip} 80 in"
-    it "should ALLOW: #{pkt}" do
-      @fw.should allow(pkt)
-    end
-  end
-  $sample_user_gray_ips.each do |user_ip|
-    pkt = "tcp from #{user_ip} #{random_port} to #{inet_ip} 80 out"
-    it "should NAT:   #{pkt}" do
-      @fw.should nat(pkt,NAT_ID_TTK)
-    end
-  end
-  $sample_user_white_ips.each do |user_ip|
-    pkt = "tcp from #{user_ip} #{random_port} to #{inet_ip} 80 out"
-    it "should NOT NAT:   #{pkt}" do
-      @fw.should_not nat(pkt,NAT_ID_TTK)
-    end
-    it "should PASS:   #{pkt}" do
-      @fw.should pass(pkt)
-    end
-  end
+	describe "USERS -> INET" do
+		$sample_user_ips.each do |user_ip|
+			pkt = "tcp from #{user_ip} #{random_port} to #{inet_ip} 80 in"
+			it "should PASS:\t#{pkt}" do
+				@fw.should pass(pkt)
+			end
+		end
+		$sample_user_gray_ips.each do |user_ip|
+			pkt = "tcp from #{user_ip} #{random_port} to #{inet_ip} 80 out"
+			it "should NAT: \t#{pkt}" do
+				@fw.should nat(pkt)
+			end
+		end
+		$sample_user_white_ips.each do |user_ip|
+			pkt = "tcp from #{user_ip} #{random_port} to #{inet_ip} 80 out"
+			it "should NOT NAT:\t#{pkt}" do
+				@fw.should_not nat(pkt)
+			end
+			it "should PASS:\t#{pkt}" do
+				@fw.should pass(pkt)
+			end
+		end
+	end
 
   describe "USERS -> TELECOM OFFICE" do
     pkts = []
@@ -159,6 +182,18 @@ describe 'Firewall' do
       end
     end
   end
+
+#  describe "NETPING, LIGHTCOM <-> ME" do
+#    describe "icmp" do
+#      pkts = []
+#      ($netping_ips + $lightcom_ips).each do |ip|
+#        pkts << "icmp from #{ip} to me"
+#        pkts << "icmp from me to #{ip}"
+#      end
+#      should_pass pkts
+#    end
+#  end
+
 
   describe "disabled users" do
     describe "INET access" do
@@ -229,5 +264,30 @@ describe 'Firewall' do
       end
       should_block pkts
     end
+  end
+
+  describe "MEDIA -> INET" do
+    pkts = []
+    pkts << "icmp from 62.165.61.21 to #{inet_ip}"
+    pkts << "tcp from 62.165.61.21 #{random_port} to #{inet_ip} 80"
+    should_pass pkts
+
+		describe "(jabber)" do
+			pkts = []
+			pkts << "tcp from #{inet_ip} #{random_port} to 62.165.61.21 5222"
+			pkts << "tcp from #{inet_ip} #{random_port} to 62.165.61.21 5223"
+			pkts << "tcp from #{inet_ip} #{random_port} to 62.165.61.21 5269"
+			pkts << "tcp from 62.165.61.21 5222 to #{inet_ip} #{random_port}"
+			pkts << "tcp from 62.165.61.21 5223 to #{inet_ip} #{random_port}"
+			pkts << "tcp from 62.165.61.21 5269 to #{inet_ip} #{random_port}"
+			should_pass pkts
+		end
+  end
+
+  describe "BILLING <-> ftp.orbitel.ru" do
+    pkts = []
+    pkts << "tcp from 62.165.61.19 #{random_port} to 62.165.61.9 21"
+    pkts << "tcp from 62.165.61.9 21 to 62.165.61.19 #{random_port}"
+    should_pass pkts
   end
 end
