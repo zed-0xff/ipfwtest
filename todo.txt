@@ -1,3 +1,4 @@
-ipfw table read
-default route interface auto get
-use true protocol instead of other first allow
+[ ] default route interface auto get
+[ ] use true protocol instead of other first allow (?)
+[ ] check icmptype on all packets (see ipfw sources!)
+[ ] checkstate/keepstate support
