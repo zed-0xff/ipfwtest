@@ -1,0 +1,41 @@
+------------------
+ Usage examples:
+------------------
+
+#./test tcp from 1.1.1.1 to www.ru 80
+#./test tcp from 1.1.1.1 to www.ru 80 and back
+#./test tcp from 1.1.1.1 1234 to www.ru 80 in
+#./test tcp from 1.1.1.1 1234 to www.ru 80 in via xl0
+#./test tcp from 1.1.1.1 1234 to www.ru 80 out
+#./test tcp from 1.1.1.1 1234 to www.ru 80 out via xl0
+
+#./test icmp from 1.1.1.1 to 2.2.2.2
+#./test icmp from 1.1.1.1 to 2.2.2.2 and back
+
+------------------
+ Output example:
+------------------
+
+[.] fetching my_ips..
+[.] fetching rules..
+[.] parsing rules..
+[.] init done
+[.] direction not specified. trying both..
+
+[.] 'IN' direction:
+[.] packet is allowed by rule 13
+
+[.] 'OUT' direction:
+[.] guessed packet out iface as 'em1'
+[.] packet is allowed by rule 13
+
+[.] reverse packet..
+[.] direction not specified. trying both..
+
+[.] 'IN' direction:
+[.] packet is allowed by rule 13
+
+[.] 'OUT' direction:
+[.] guessed packet out iface as 'em1'
+[.] packet is allowed by rule 13
+
