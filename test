@@ -2,6 +2,7 @@
 
 require 'ipfw'
 require 'pp'
+require 'zlogger'
 
 #pp fw
 
@@ -11,21 +12,84 @@ require 'pp'
 
 # 192.168.241.166.1184 > 62.165.61.10.3128
 
+$logger = ZLogger.new :date_format => ''
+
+def logger; $logger; end
+
+logger.colorize! 'is allowed' => :green
+logger.colorize! 'is denied' => :red
+logger.colorize! 'packet passed to' => :yellow
+logger.colorize! 'is forwarded to' => :green
+
+def guess_out_iface packet
+	if packet.direction.to_s == 'out' && !packet.interface
+		s = `route -n get #{packet.dst_ip} | grep -w interface:`
+		if iface = s.strip.split.last
+			logger.info "guessed packet out iface as '#{iface}'"
+			packet.interface = iface
+		else
+			logger.warn "failed to guess packet out iface"
+		end
+	end
+end
+
+def test_packet p, fw
+	if p.direction
+		guess_out_iface p
+		r = fw.packet! p
+		#puts "r = #{r.inspect}"
+	else
+		logger.info "direction not specified. trying both.."
+
+		if p.interface
+			logger.error "could not process packet WITH interface(#{p.interface}) and WITHOUT direction"
+			exit 1
+		end
+
+		logger.info
+		logger.info "'IN' direction:"
+		p1 = p.dup
+		p1.direction = :in
+		r = fw.packet! p1
+		#puts "r = #{r.inspect}"
+
+		logger.info
+		logger.info "'OUT' direction:"
+		p1 = p.dup
+		p1.direction = :out
+		guess_out_iface p1
+		r = fw.packet! p1
+		#puts "r = #{r.inspect}"
+	end
+end
+
 r = nil
 
 if ARGV.size > 0
-  p = Packet.from_string( ARGV.join(' '))
-  fw = IPFW.from_system :verbose => true, :max_table_id => 10
-  r = fw.packet! p
+	packet_string = ARGV.join(' ')
+	do_back = false
+	if packet_string['and back']
+		packet_string.sub! 'and back',''
+		do_back = true
+	end
+  p = Packet.from_string packet_string
+  fw = IPFW.from_system :verbose => true , :lazy_tables => true
+	test_packet p, fw
+	if do_back
+		logger.info
+		logger.info "reverse packet.."
+		p.reverse!
+		test_packet p, fw
+	end
 else
   fw = IPFW.from_system :verbose => true, :max_table_id => 10
   r = fw.packet!(
     :protocol => :tcp,
-    :to => '62.165.61.1',
-    :from => '10.0.1.2',
-    :dst_port => 21,
+    :to => '78.108.67.1',
+    :from => '195.88.62.202',
+    :dst_port => 80,
     :src_port => 2765
   )
+	#puts "r = #{r.inspect}"
 end
 
-puts "r = #{r.inspect}"

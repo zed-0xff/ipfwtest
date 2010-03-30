@@ -1,4 +1,4 @@
-[ ] default route interface auto get
-[ ] use true protocol instead of other first allow (?)
+[+] default route interface auto get
+[ ] use true protocol instead of other first allow (see ipfw sources!)
 [ ] check icmptype on all packets (see ipfw sources!)
 [ ] checkstate/keepstate support

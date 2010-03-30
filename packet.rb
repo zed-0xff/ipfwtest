@@ -4,6 +4,7 @@ require 'rubygems'
 gem 'netaddr'
 
 require 'net_services'
+require 'zlogger'
 
 class Packet
 	attr_reader :protocol, :src_ip, :dst_ip, :src_port, :dst_port, :direction
@@ -61,6 +62,11 @@ class Packet
         when 'in', 'out'
           h[:direction] = word
 
+				when 'via'
+          raise "gimme an interface name!" unless arg1
+					h[:interface] = arg1
+          pos += 1
+
 				else
 					raise "invalid token: '#{word}'"
       end
@@ -74,6 +80,7 @@ class Packet
 	end
 
 	def src_ip= ip
+		ip = parse_host(ip)
 		NetAddr::CIDR.create ip # validate ip
 		@src_ip = ip
 	end
@@ -81,6 +88,7 @@ class Packet
 	alias from src_ip
 
 	def dst_ip= ip
+		ip = parse_host(ip)
 		NetAddr::CIDR.create ip # validate ip
 		@dst_ip = ip
 	end
@@ -108,4 +116,26 @@ class Packet
     raise "Invalid direction" unless [:in, :out].include?(dir)
     @direction = dir
   end
+
+	def reverse!
+		self.from_port, self.to_port = self.to_port, self.from_port
+		self.from, self.to = self.to, self.from
+#		self.interface = nil
+		self
+	end
+
+	private
+
+	def parse_host host
+		return host if host =~ /^\d+\.\d+\.\d+\.\d+$/ # IPv4 address
+		require 'resolv'
+		@dns ||= Resolv::DNS.new
+		ip = @dns.getaddress(host).to_s
+		logger.info "#{host.inspect} resolved to #{ip}"
+		ip
+	end
+
+	def logger
+		$logger || ZLogger.new
+	end
 end

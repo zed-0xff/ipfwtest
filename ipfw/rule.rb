@@ -79,7 +79,7 @@ class IPFW::Rule
 		end
 
 		case token
-			when *%w'allow deny count skipto fwd divert queue pipe nat check-state'
+			when *%w'allow deny count skipto fwd divert queue pipe nat check-state ngtee'
 				eval(token.tr('-','_').capitalize).new(a)
 			else
 				raise "Invalid token '#{token}'"
@@ -144,7 +144,8 @@ class IPFW::Rule
 
 	def match_from? ip, tables={}
 		self.negate_from ^ if @from_table
-			tables[@from_table.to_i] && tables[@from_table.to_i][ip]
+			check_table @from_table.to_i, ip
+#			tables[@from_table.to_i] && tables[@from_table.to_i][ip]
 		else
 		  self.from == :any || self.from.any?{ |addr| addr.matches?ip }
 		end
@@ -152,7 +153,8 @@ class IPFW::Rule
 
 	def match_to? ip, tables={}
 		self.negate_to ^ if @to_table
-			tables[@to_table.to_i] && tables[@to_table.to_i][ip]
+			check_table @to_table.to_i, ip
+#			tables[@to_table.to_i] && tables[@to_table.to_i][ip]
 		else
 			self.to == :any || self.to.any?{ |addr| addr.matches?ip }
 		end
@@ -205,7 +207,7 @@ class IPFW::Rule
 
 	def protocol= proto
 		proto = proto.downcase.to_sym
-		raise "Invalid protocol '#{proto}'" unless [:ip, :tcp, :udp, :icmp].include?(proto)
+		raise "Invalid protocol '#{proto}'" unless [:ip, :tcp, :udp, :icmp, :gre].include?(proto)
 		@protocol = proto
 	end
 
@@ -246,11 +248,22 @@ class IPFW::Rule
 		# generic action
 		puts "\t#{self.inspect}" if self.debug
 	end
+
+	private
+
+	def check_table table_id, ip
+		if firewall.tables.key?(table_id)
+			firewall.tables[table_id][ip]
+		else
+			firewall.fetch_table! table_id
+			firewall.tables[table_id][ip]
+		end
+	end
 end
 
 class IPFW::Rule::Allow < IPFW::Rule
 	def action!
-		puts "[*] packet is allowed by rule #{@number}" if verbose
+		logger.info "packet is allowed by rule #{@number}" if verbose
 		super
     firewall.stop!
     true
@@ -260,7 +273,7 @@ end
 
 class IPFW::Rule::Deny < IPFW::Rule
 	def action!
-		puts "[!] packet is denied by rule #{@number}" if verbose
+		logger.error "packet is denied by rule #{@number}" if verbose
 		super
     firewall.stop!
     false
@@ -307,7 +320,7 @@ class IPFW::Rule::Queue < IPFW::Rule
 		super(a)
 	end
 	def action!
-		puts "[*] packet passed to queue #{@queue} by rule #{@number}" if verbose
+		logger.info "packet passed to queue #{@queue} by rule #{@number}" if verbose
 		super
 		firewall.stop! if @firewall.one_pass?
     true
@@ -328,7 +341,7 @@ class IPFW::Rule::Pipe < IPFW::Rule
 			else
 				raise "Invalid pipe #{@pipe}"
 		end
-		puts "[*] packet passed to pipe #{pipeno} by rule #{@number}" if verbose
+		logger.info "packet passed to pipe #{pipeno} by rule #{@number}" #if verbose
 		super
 		firewall.stop! if @firewall.one_pass?
     true
@@ -343,7 +356,9 @@ class IPFW::Rule::Fwd < IPFW::Rule
 		super(a)
 	end
 	def action!
-		puts "[*] packet is forwarded to #{@fwd_to}:#{@fwd_port} by rule #{@number}" if verbose
+		fwd_dest = @fwd_to.to_s.sub(/\/32$/,'')
+		fwd_dest += ":#@fwd_port" if @fwd_port
+		logger.info "packet is forwarded to #{fwd_dest} by rule #{@number}" if verbose
 		super
     firewall.stop!
 		[:fwd, @fwd_to, @fwd_port]
@@ -371,6 +386,19 @@ class IPFW::Rule::Check_state < IPFW::Rule
 	end
 	def action!
 		puts "[.] packet is checkstated by rule #{@number}" if verbose
+		super
+	end
+end
+
+class IPFW::Rule::Ngtee < IPFW::Rule
+	def initialize a
+		self.from = :any
+    self.to = :any
+		a.shift
+		super(a)
+	end
+	def action!
+		puts "[.] packet is ng_tee'd by rule #{@number}" if verbose
 		super
 	end
 end

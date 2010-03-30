@@ -67,6 +67,13 @@ describe 'Firewall' do
     @fw = $fw
   end
 
+  describe "SUTTK <-> ME BGP" do
+    pkts = []
+    pkts << "tcp from 62.165.53.129 #{random_port} to 62.165.53.130 bgp in"
+    pkts << "tcp from 62.165.53.130 bgp to 62.165.53.129 #{random_port} out"
+    should_pass pkts
+  end
+
   describe "ORBITEL OFFICE <-> ME" do
     pkts = []
     pkts << "tcp from 192.168.250.8 to 62.165.61.1 in"

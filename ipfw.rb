@@ -49,7 +49,7 @@ class IPFW
 				pos += 1
 				arule = @rules[idx]
 				#next unless arule
-				puts "[.] #{idx}" if self.verbose
+				#puts "[.] #{idx}" if self.verbose
 
         @last_rule_id = idx
 
@@ -121,11 +121,19 @@ class IPFW
 	end
 
 	def table! table_id, table_data
+		print "[.] fetching table #{table_id}..                        \r"
 		@tables[table_id.to_i] = IPFW::Table.new table_data
 	end
 
 	def one_pass?
 		@one_pass
+	end
+
+	def fetch_table! table_id
+		table_data = `sudo ipfw table #{table_id} list`
+		#next if table_data.empty?
+		table_data = table_data.split("\n")
+		table! table_id, table_data
 	end
 
 	def self.from_system params = {}
@@ -140,12 +148,11 @@ class IPFW
     puts "[.] parsing rules.." if verbose
     fw.load_rules rules
 
-    puts "[.] fetching tables.." if verbose
-		(0..(params[:max_table_id] || 127)).each do |table_id|
-			table_data = `sudo ipfw table #{table_id} list`
-			next if table_data.empty?
-			table_data = table_data.split("\n")
-			fw.table! table_id, table_data
+		unless params[:lazy_tables]
+			puts "[.] fetching tables.." if verbose
+			(0..(params[:max_table_id] || 127)).each do |table_id|
+				fw.fetch_table! table_id
+			end
 		end
 
     puts "[.] init done" if verbose
